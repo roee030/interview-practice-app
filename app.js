@@ -16,6 +16,7 @@
     currentId: null,
     answerOpen: false,
     explainOpen: false,
+    howToOpen: false,
     progressPanelOpen: false,
     shuffleOrder: null
   };
@@ -25,7 +26,7 @@
       var raw = localStorage.getItem(STORAGE_KEY);
       if (!raw) return;
       var saved = JSON.parse(raw);
-      Object.assign(state, saved, { answerOpen: false, explainOpen: false });
+      Object.assign(state, saved, { answerOpen: false, explainOpen: false, howToOpen: false });
     } catch (e) { /* ignore corrupt storage */ }
   }
 
@@ -315,6 +316,10 @@
       ? '<div class="explanation-box">' + escapeHtml(card.explanation) + "</div>"
       : '<p class="no-code-note">No written explanation for this entry.</p>';
 
+    var howToContent = card.howTo
+      ? '<div class="howto-box">' + escapeHtml(card.howTo) + "</div>"
+      : '<p class="no-code-note">No walkthrough yet for this entry.</p>';
+
     $flashcard.innerHTML =
       '<div class="card-chrome">' +
         '<div class="chrome-dots"><span></span><span></span><span></span></div>' +
@@ -326,21 +331,31 @@
         badgeLine +
         '<h2 class="question-text">' + escapeHtml(card.question) + "</h2>" +
         '<div class="action-row">' +
-          '<button class="reveal-btn' + (state.answerOpen ? " active" : "") + '" id="answerBtn">' +
-            (state.answerOpen ? "hide_answer" : "show_answer") +
+          '<button class="reveal-btn howto' + (state.howToOpen ? " active" : "") + '" id="howToBtn">' +
+            (state.howToOpen ? "hide_how_to_solve" : "how_to_solve_it") +
           "</button>" +
           '<button class="reveal-btn explain' + (state.explainOpen ? " active" : "") + '" id="explainBtn">' +
             (state.explainOpen ? "hide_explanation" : "show_explanation") +
           "</button>" +
+          '<button class="reveal-btn' + (state.answerOpen ? " active" : "") + '" id="answerBtn">' +
+            (state.answerOpen ? "hide_answer" : "show_answer") +
+          "</button>" +
         "</div>" +
-        '<div class="reveal-panel' + (state.answerOpen ? " open" : "") + '"><div class="reveal-panel-inner">' +
-          '<p class="panel-label">Answer / Solution</p>' + codeContent +
+        '<div class="reveal-panel' + (state.howToOpen ? " open" : "") + '"><div class="reveal-panel-inner">' +
+          '<p class="panel-label">How to solve it &mdash; the thinking, step by step</p>' + howToContent +
         "</div></div>" +
         '<div class="reveal-panel' + (state.explainOpen ? " open" : "") + '"><div class="reveal-panel-inner">' +
           '<p class="panel-label">Explanation</p>' + explanationContent +
         "</div></div>" +
+        '<div class="reveal-panel' + (state.answerOpen ? " open" : "") + '"><div class="reveal-panel-inner">' +
+          '<p class="panel-label">Answer / Solution</p>' + codeContent +
+        "</div></div>" +
       "</div>";
 
+    document.getElementById("howToBtn").addEventListener("click", function () {
+      state.howToOpen = !state.howToOpen;
+      renderFlashcard();
+    });
     document.getElementById("answerBtn").addEventListener("click", function () {
       state.answerOpen = !state.answerOpen;
       renderFlashcard();
@@ -493,6 +508,7 @@
     if (e.key === "ArrowRight") { goTo(1); return; }
     if (e.key.toLowerCase() === "a") { document.getElementById("answerBtn") && document.getElementById("answerBtn").click(); return; }
     if (e.key.toLowerCase() === "e") { document.getElementById("explainBtn") && document.getElementById("explainBtn").click(); return; }
+    if (e.key.toLowerCase() === "h") { document.getElementById("howToBtn") && document.getElementById("howToBtn").click(); return; }
     if (e.key.toLowerCase() === "d") { $reviewBtn.click(); return; }
   });
 

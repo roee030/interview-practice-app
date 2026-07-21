@@ -344,6 +344,8 @@ body {
 .reveal-btn.active { border-color: var(--amber); color: var(--amber); background: rgba(255,176,32,0.08); }
 .reveal-btn.explain::before { color: var(--cyan); }
 .reveal-btn.explain.active { border-color: var(--cyan); color: var(--cyan); background: rgba(34,211,238,0.08); }
+.reveal-btn.howto::before { color: var(--magenta); }
+.reveal-btn.howto.active { border-color: var(--magenta); color: var(--magenta); background: rgba(255,61,129,0.08); }
 
 .reveal-panel {
   display: grid; grid-template-rows: 0fr; opacity: 0;
@@ -389,6 +391,19 @@ body {
 .code-box .tok-com { color: #5f6b7a; font-style: italic; }
 .code-box .tok-num { color: #ffb020; }
 .code-box .tok-fn { color: #7dd3fc; }
+
+.howto-box {
+  background: var(--panel);
+  border: 1px solid var(--border-soft);
+  border-left: 3px solid var(--magenta);
+  border-radius: 0 var(--radius-sm) var(--radius-sm) 0;
+  padding: 16px 18px;
+  font-size: 14.5px;
+  line-height: 1.7;
+  color: var(--text);
+  white-space: pre-wrap;
+  font-family: var(--font-sans);
+}
 
 .no-code-note { font-size: 13px; color: var(--text-faint); font-family: var(--font-mono); font-style: italic; }
 
