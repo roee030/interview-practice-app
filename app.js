@@ -1,13 +1,14 @@
 (function () {
   "use strict";
 
-  var STORAGE_KEY = "interviewTerminal.v1";
+  var STORAGE_KEY = "interviewTerminal.v2";
   var ALL_CARDS = window.CARDS || [];
 
   // ---------------- state ----------------
   var state = {
     guide: "all",
     topic: "all",
+    pattern: "all",
     level: "all",
     search: "",
     hideDone: false,
@@ -17,8 +18,16 @@
     answerOpen: false,
     explainOpen: false,
     howToOpen: false,
+    dryRunOpen: false,
+    pitfallsOpen: false,
+    dryRunFrame: 0,
     progressPanelOpen: false,
     shuffleOrder: null
+  };
+
+  var RESET_ON_LOAD = {
+    answerOpen: false, explainOpen: false, howToOpen: false,
+    dryRunOpen: false, pitfallsOpen: false, dryRunFrame: 0
   };
 
   function loadState() {
@@ -26,24 +35,26 @@
       var raw = localStorage.getItem(STORAGE_KEY);
       if (!raw) return;
       var saved = JSON.parse(raw);
-      Object.assign(state, saved, { answerOpen: false, explainOpen: false, howToOpen: false });
+      Object.assign(state, saved, RESET_ON_LOAD);
     } catch (e) { /* ignore corrupt storage */ }
   }
 
   function saveState() {
     var toSave = {
-      guide: state.guide, topic: state.topic, level: state.level,
+      guide: state.guide, topic: state.topic, pattern: state.pattern, level: state.level,
       hideDone: state.hideDone, shuffle: state.shuffle,
       reviewed: state.reviewed, currentId: state.currentId
     };
     localStorage.setItem(STORAGE_KEY, JSON.stringify(toSave));
   }
 
-  // ---------------- topics ----------------
-  var TOPICS = {}; // guide -> [ {title, num} ] sorted
+  // ---------------- topics & patterns ----------------
+  var TOPICS = {}; // guide -> {topic: topicNum}
+  var PATTERN_SET = {};
   ALL_CARDS.forEach(function (c) {
     if (!TOPICS[c.guide]) TOPICS[c.guide] = {};
     TOPICS[c.guide][c.topic] = c.topicNum;
+    if (c.pattern) PATTERN_SET[c.pattern] = true;
   });
   var TOPIC_LIST = {};
   Object.keys(TOPICS).forEach(function (g) {
@@ -51,16 +62,18 @@
       return TOPICS[g][a] - TOPICS[g][b];
     });
   });
+  var PATTERN_LIST = Object.keys(PATTERN_SET).sort();
 
   // ---------------- filtering ----------------
   function matchesFilters(c) {
     if (state.guide !== "all" && c.guide !== state.guide) return false;
     if (state.topic !== "all" && c.topic !== state.topic) return false;
+    if (state.pattern !== "all" && c.pattern !== state.pattern) return false;
     if (state.level !== "all" && c.level !== state.level) return false;
     if (state.hideDone && state.reviewed[c.id]) return false;
     if (state.search) {
       var q = state.search.toLowerCase();
-      var hay = (c.question + " " + c.topic + " " + (c.badge || "")).toLowerCase();
+      var hay = (c.question + " " + c.topic + " " + (c.pattern || "") + " " + (c.badge || "")).toLowerCase();
       if (hay.indexOf(q) === -1) return false;
     }
     return true;
@@ -96,7 +109,7 @@
   KEYWORDS.forEach(function (k) { KEYWORD_SET[k] = true; });
 
   function escapeHtml(s) {
-    return s.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
+    return String(s).replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
   }
 
   function highlightCode(code) {
@@ -105,7 +118,6 @@
     while (i < n) {
       var ch = code[i];
 
-      // line comment
       if (ch === "/" && code[i + 1] === "/") {
         var end = code.indexOf("\n", i);
         if (end === -1) end = n;
@@ -113,7 +125,6 @@
         i = end;
         continue;
       }
-      // block comment
       if (ch === "/" && code[i + 1] === "*") {
         var end2 = code.indexOf("*/", i + 2);
         end2 = end2 === -1 ? n : end2 + 2;
@@ -121,7 +132,6 @@
         i = end2;
         continue;
       }
-      // strings / template literals
       if (ch === "'" || ch === '"' || ch === "`") {
         var quote = ch, j = i + 1;
         while (j < n && code[j] !== quote) {
@@ -133,7 +143,6 @@
         i = j;
         continue;
       }
-      // numbers
       if (/[0-9]/.test(ch) && !/[A-Za-z_$]/.test(code[i - 1] || "")) {
         var k = i;
         while (k < n && /[0-9.xXa-fA-F]/.test(code[k])) k++;
@@ -141,7 +150,6 @@
         i = k;
         continue;
       }
-      // identifiers / keywords / function calls
       if (/[A-Za-z_$]/.test(ch)) {
         var m = i;
         while (m < n && /[A-Za-z0-9_$]/.test(code[m])) m++;
@@ -165,6 +173,7 @@
   // ---------------- DOM refs ----------------
   var $guideTabs = document.getElementById("guideTabs");
   var $topicSelect = document.getElementById("topicSelect");
+  var $patternSelect = document.getElementById("patternSelect");
   var $levelChips = document.getElementById("levelChips");
   var $searchInput = document.getElementById("searchInput");
   var $hideDoneBtn = document.getElementById("hideDoneBtn");
@@ -178,7 +187,6 @@
   var $progressToggle = document.getElementById("progressToggle");
   var $progressPanel = document.getElementById("progressPanel");
   var $progressList = document.getElementById("progressList");
-  var $mainLayout = document.querySelector(".main-layout");
   var $ringFill = document.getElementById("ringFill");
   var $ringLabel = document.getElementById("ringLabel");
   var $cntAll = document.getElementById("cnt-all");
@@ -187,7 +195,7 @@
 
   var RING_CIRC = 119.4;
 
-  // ---------------- render: topic select ----------------
+  // ---------------- render: topic & pattern selects ----------------
   function renderTopicSelect() {
     var guides = state.guide === "all" ? Object.keys(TOPIC_LIST) : [state.guide];
     var html = '<option value="all">All topics</option>';
@@ -204,6 +212,16 @@
       state.topic = "all";
     }
     $topicSelect.value = state.topic;
+  }
+
+  function renderPatternSelect() {
+    var html = '<option value="all">All patterns</option>';
+    PATTERN_LIST.forEach(function (p) {
+      var selected = state.pattern === p ? " selected" : "";
+      html += '<option value="' + escapeHtml(p) + '"' + selected + ">" + escapeHtml(p) + "</option>";
+    });
+    $patternSelect.innerHTML = html;
+    $patternSelect.value = state.pattern;
   }
 
   // ---------------- render: header counts / ring ----------------
@@ -275,6 +293,38 @@
     state.currentId = (firstUnreviewed || list[0]).id;
   }
 
+  function renderDryRunPanel(card) {
+    var dr = card.dryRun;
+    if (!dr || !dr.frames || !dr.frames.length) {
+      return '<p class="no-code-note">No dry run for this one — it&#39;s a concept without a step-by-step trace.</p>';
+    }
+    var total = dr.frames.length;
+    if (state.dryRunFrame >= total) state.dryRunFrame = total - 1;
+    if (state.dryRunFrame < 0) state.dryRunFrame = 0;
+    var frameText = dr.frames[state.dryRunFrame];
+
+    var html = '<div class="dryrun-box">';
+    if (dr.input) html += '<div class="dryrun-input"><span class="dryrun-tag">INPUT</span>' + escapeHtml(dr.input) + "</div>";
+    html += '<div class="dryrun-frame">' +
+      '<div class="dryrun-frame-head">' +
+        '<span class="dryrun-frame-label">FRAME ' + (state.dryRunFrame + 1) + " / " + total + "</span>" +
+        '<div class="dryrun-frame-nav">' +
+          '<button id="dryRunPrevFrame" class="dryrun-nav-btn"' + (state.dryRunFrame === 0 ? " disabled" : "") + ' aria-label="Previous frame">&larr;</button>' +
+          '<button id="dryRunNextFrame" class="dryrun-nav-btn"' + (state.dryRunFrame === total - 1 ? " disabled" : "") + ' aria-label="Next frame">&rarr;</button>' +
+        "</div>" +
+      "</div>" +
+      '<div class="dryrun-frame-dots">';
+    for (var i = 0; i < total; i++) {
+      html += '<span class="dryrun-dot' + (i === state.dryRunFrame ? " active" : "") + (i < state.dryRunFrame ? " past" : "") + '" data-frame="' + i + '"></span>';
+    }
+    html += "</div>" +
+      '<div class="dryrun-frame-text">' + escapeHtml(frameText) + "</div>" +
+    "</div>";
+    if (dr.result) html += '<div class="dryrun-result"><span class="dryrun-tag">RESULT</span>' + escapeHtml(dr.result) + "</div>";
+    html += "</div>";
+    return html;
+  }
+
   function renderFlashcard() {
     var list = getCurrentList();
 
@@ -304,9 +354,14 @@
         escapeHtml(card.guide === "Interview Guide" ? "Interview Prep" : "Algorithm") + "</span>" +
       '<span class="tag tag-level-' + card.level + '">' + card.level + "</span>" +
       '<span class="tag tag-topic">' + escapeHtml(card.topic) + "</span>" +
+      (card.pattern ? '<span class="tag tag-pattern">' + escapeHtml(card.pattern) + "</span>" : "") +
       (isDone ? '<span class="tag tag-reviewed">&#10003; reviewed</span>' : "");
 
     var badgeLine = card.badge ? '<div class="badge-line">' + escapeHtml(card.badge) + "</div>" : "";
+
+    var takeawayStrip = card.patternTakeaway
+      ? '<div class="takeaway-strip"><span class="takeaway-icon">&#129504;</span><span>' + escapeHtml(card.patternTakeaway) + "</span></div>"
+      : "";
 
     var codeContent = card.code
       ? '<pre class="code-box">' + highlightCode(card.code) + "</pre>"
@@ -320,6 +375,17 @@
       ? '<div class="howto-box">' + escapeHtml(card.howTo) + "</div>"
       : '<p class="no-code-note">No walkthrough yet for this entry.</p>';
 
+    var pitfallsContent;
+    if (card.pitfalls && card.pitfalls.length) {
+      pitfallsContent = '<ul class="pitfalls-list">' +
+        card.pitfalls.map(function (p) { return '<li><span class="pitfall-icon">&#9888;</span>' + escapeHtml(p) + "</li>"; }).join("") +
+        "</ul>";
+    } else {
+      pitfallsContent = '<p class="no-code-note">No pitfalls noted for this one.</p>';
+    }
+
+    var dryRunContent = renderDryRunPanel(card);
+
     $flashcard.innerHTML =
       '<div class="card-chrome">' +
         '<div class="chrome-dots"><span></span><span></span><span></span></div>' +
@@ -330,9 +396,16 @@
         '<div class="tag-row">' + tagRow + "</div>" +
         badgeLine +
         '<h2 class="question-text">' + escapeHtml(card.question) + "</h2>" +
+        takeawayStrip +
         '<div class="action-row">' +
           '<button class="reveal-btn howto' + (state.howToOpen ? " active" : "") + '" id="howToBtn">' +
             (state.howToOpen ? "hide_how_to_solve" : "how_to_solve_it") +
+          "</button>" +
+          '<button class="reveal-btn dryrun' + (state.dryRunOpen ? " active" : "") + '" id="dryRunBtn">' +
+            "&#127916; " + (state.dryRunOpen ? "hide_dry_run" : "dry_run") +
+          "</button>" +
+          '<button class="reveal-btn pitfalls' + (state.pitfallsOpen ? " active" : "") + '" id="pitfallsBtn">' +
+            "&#9888; " + (state.pitfallsOpen ? "hide_pitfalls" : "pitfalls") +
           "</button>" +
           '<button class="reveal-btn explain' + (state.explainOpen ? " active" : "") + '" id="explainBtn">' +
             (state.explainOpen ? "hide_explanation" : "show_explanation") +
@@ -343,6 +416,12 @@
         "</div>" +
         '<div class="reveal-panel' + (state.howToOpen ? " open" : "") + '"><div class="reveal-panel-inner">' +
           '<p class="panel-label">How to solve it &mdash; the thinking, step by step</p>' + howToContent +
+        "</div></div>" +
+        '<div class="reveal-panel' + (state.dryRunOpen ? " open" : "") + '"><div class="reveal-panel-inner">' +
+          '<p class="panel-label">&#127916; Dry Run &mdash; watch it run, frame by frame</p>' + dryRunContent +
+        "</div></div>" +
+        '<div class="reveal-panel' + (state.pitfallsOpen ? " open" : "") + '"><div class="reveal-panel-inner">' +
+          '<p class="panel-label">&#9888; Pitfalls &mdash; small things people forget</p>' + pitfallsContent +
         "</div></div>" +
         '<div class="reveal-panel' + (state.explainOpen ? " open" : "") + '"><div class="reveal-panel-inner">' +
           '<p class="panel-label">Explanation</p>' + explanationContent +
@@ -356,6 +435,14 @@
       state.howToOpen = !state.howToOpen;
       renderFlashcard();
     });
+    document.getElementById("dryRunBtn").addEventListener("click", function () {
+      state.dryRunOpen = !state.dryRunOpen;
+      renderFlashcard();
+    });
+    document.getElementById("pitfallsBtn").addEventListener("click", function () {
+      state.pitfallsOpen = !state.pitfallsOpen;
+      renderFlashcard();
+    });
     document.getElementById("answerBtn").addEventListener("click", function () {
       state.answerOpen = !state.answerOpen;
       renderFlashcard();
@@ -363,6 +450,17 @@
     document.getElementById("explainBtn").addEventListener("click", function () {
       state.explainOpen = !state.explainOpen;
       renderFlashcard();
+    });
+
+    var $drPrev = document.getElementById("dryRunPrevFrame");
+    var $drNext = document.getElementById("dryRunNextFrame");
+    if ($drPrev) $drPrev.addEventListener("click", function () { state.dryRunFrame--; renderFlashcard(); });
+    if ($drNext) $drNext.addEventListener("click", function () { state.dryRunFrame++; renderFlashcard(); });
+    $flashcard.querySelectorAll(".dryrun-dot").forEach(function (dot) {
+      dot.addEventListener("click", function () {
+        state.dryRunFrame = parseInt(dot.getAttribute("data-frame"), 10);
+        renderFlashcard();
+      });
     });
 
     $prevBtn.disabled = idx === 0;
@@ -386,12 +484,17 @@
     state.currentId = list[next].id;
     state.answerOpen = false;
     state.explainOpen = false;
+    state.howToOpen = false;
+    state.dryRunOpen = false;
+    state.pitfallsOpen = false;
+    state.dryRunFrame = 0;
     renderAll();
   }
 
   function resetFilters() {
     state.guide = "all";
     state.topic = "all";
+    state.pattern = "all";
     state.level = "all";
     state.search = "";
     state.hideDone = false;
@@ -400,6 +503,7 @@
     $searchInput.value = "";
     syncGuideTabs();
     renderTopicSelect();
+    renderPatternSelect();
     syncLevelChips();
     syncToggle($hideDoneBtn, false);
     syncToggle($shuffleBtn, false);
@@ -432,6 +536,13 @@
 
   $topicSelect.addEventListener("change", function () {
     state.topic = $topicSelect.value;
+    state.shuffleOrder = null;
+    jumpToFirstUnreviewedOrFirst();
+    renderAll();
+  });
+
+  $patternSelect.addEventListener("change", function () {
+    state.pattern = $patternSelect.value;
     state.shuffleOrder = null;
     jumpToFirstUnreviewedOrFirst();
     renderAll();
@@ -509,6 +620,8 @@
     if (e.key.toLowerCase() === "a") { document.getElementById("answerBtn") && document.getElementById("answerBtn").click(); return; }
     if (e.key.toLowerCase() === "e") { document.getElementById("explainBtn") && document.getElementById("explainBtn").click(); return; }
     if (e.key.toLowerCase() === "h") { document.getElementById("howToBtn") && document.getElementById("howToBtn").click(); return; }
+    if (e.key.toLowerCase() === "r") { document.getElementById("dryRunBtn") && document.getElementById("dryRunBtn").click(); return; }
+    if (e.key.toLowerCase() === "p") { document.getElementById("pitfallsBtn") && document.getElementById("pitfallsBtn").click(); return; }
     if (e.key.toLowerCase() === "d") { $reviewBtn.click(); return; }
   });
 
@@ -517,6 +630,7 @@
     loadState();
     syncGuideTabs();
     renderTopicSelect();
+    renderPatternSelect();
     syncLevelChips();
     syncToggle($hideDoneBtn, state.hideDone);
     syncToggle($shuffleBtn, state.shuffle);

@@ -15,6 +15,9 @@
   --amber-dim: #7a5518;
   --cyan: #22d3ee;
   --magenta: #ff3d81;
+  --teal: #2dd4bf;
+  --violet: #a78bfa;
+  --warn: #f87171;
 
   --easy: #34d399;
   --medium: #fbbf24;
@@ -315,12 +318,27 @@ body {
 .tag-level-Medium { color: var(--medium); border-color: rgba(251,191,36,0.35); background: rgba(251,191,36,0.08); }
 .tag-level-Hard { color: var(--hard); border-color: rgba(251,113,133,0.35); background: rgba(251,113,133,0.08); }
 .tag-topic { color: var(--text-dim); }
+.tag-pattern { color: var(--violet); border-color: rgba(167,139,250,0.35); background: rgba(167,139,250,0.08); }
 .tag-reviewed { color: var(--amber); border-color: var(--amber-dim); background: rgba(255,176,32,0.1); }
 
 .badge-line {
   font-family: var(--font-mono); font-size: 12px; color: var(--text-faint);
   margin: -8px 0 16px; line-height: 1.5;
 }
+
+.takeaway-strip {
+  display: flex; align-items: flex-start; gap: 10px;
+  background: linear-gradient(90deg, rgba(167,139,250,0.1), rgba(167,139,250,0.03));
+  border: 1px solid rgba(167,139,250,0.3);
+  border-radius: var(--radius-sm);
+  padding: 11px 14px;
+  margin: 0 0 20px;
+  font-size: 13.5px;
+  line-height: 1.5;
+  color: var(--text);
+  font-style: italic;
+}
+.takeaway-icon { font-style: normal; flex-shrink: 0; font-size: 15px; }
 
 .question-text {
   font-family: var(--font-display);
@@ -346,6 +364,9 @@ body {
 .reveal-btn.explain.active { border-color: var(--cyan); color: var(--cyan); background: rgba(34,211,238,0.08); }
 .reveal-btn.howto::before { color: var(--magenta); }
 .reveal-btn.howto.active { border-color: var(--magenta); color: var(--magenta); background: rgba(255,61,129,0.08); }
+.reveal-btn.dryrun::before, .reveal-btn.pitfalls::before { content: none; }
+.reveal-btn.dryrun.active { border-color: var(--teal); color: var(--teal); background: rgba(45,212,191,0.08); }
+.reveal-btn.pitfalls.active { border-color: var(--warn); color: var(--warn); background: rgba(248,113,113,0.08); }
 
 .reveal-panel {
   display: grid; grid-template-rows: 0fr; opacity: 0;
@@ -391,6 +412,64 @@ body {
 .code-box .tok-com { color: #5f6b7a; font-style: italic; }
 .code-box .tok-num { color: #ffb020; }
 .code-box .tok-fn { color: #7dd3fc; }
+
+.dryrun-box { display: flex; flex-direction: column; gap: 10px; }
+.dryrun-tag {
+  font-family: var(--font-mono); font-size: 9.5px; font-weight: 600; letter-spacing: 0.08em;
+  color: var(--teal); background: rgba(45,212,191,0.12); border-radius: 4px;
+  padding: 2px 6px; margin-right: 8px; vertical-align: middle;
+}
+.dryrun-input, .dryrun-result {
+  font-family: var(--font-mono); font-size: 13px; color: var(--text-dim);
+  background: var(--panel); border: 1px solid var(--border-soft); border-radius: var(--radius-sm);
+  padding: 10px 12px; line-height: 1.5; word-break: break-word;
+}
+.dryrun-result { color: var(--text); }
+.dryrun-frame {
+  background: #0d0e10;
+  border: 1px solid rgba(45,212,191,0.3);
+  border-radius: var(--radius-sm);
+  padding: 14px 16px;
+}
+.dryrun-frame-head { display: flex; align-items: center; justify-content: space-between; margin-bottom: 10px; }
+.dryrun-frame-label {
+  font-family: var(--font-mono); font-size: 10.5px; font-weight: 600; letter-spacing: 0.06em;
+  color: var(--teal);
+}
+.dryrun-frame-nav { display: flex; gap: 6px; }
+.dryrun-nav-btn {
+  background: var(--panel-2); border: 1px solid var(--border); color: var(--text);
+  width: 26px; height: 26px; border-radius: 6px; cursor: pointer; font-size: 13px;
+  display: flex; align-items: center; justify-content: center;
+  transition: all .15s ease;
+}
+.dryrun-nav-btn:hover:not(:disabled) { border-color: var(--teal); color: var(--teal); }
+.dryrun-nav-btn:disabled { opacity: 0.3; cursor: not-allowed; }
+.dryrun-frame-dots { display: flex; gap: 5px; margin-bottom: 12px; }
+.dryrun-dot {
+  width: 7px; height: 7px; border-radius: 50%; background: var(--panel-3);
+  cursor: pointer; transition: all .15s ease;
+}
+.dryrun-dot.past { background: rgba(45,212,191,0.35); }
+.dryrun-dot.active { background: var(--teal); width: 18px; border-radius: 4px; }
+.dryrun-frame-text {
+  font-family: var(--font-mono); font-size: 13.5px; line-height: 1.7; color: var(--text);
+  min-height: 44px;
+}
+
+.pitfalls-list { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 8px; }
+.pitfalls-list li {
+  display: flex; align-items: flex-start; gap: 10px;
+  background: var(--panel);
+  border: 1px solid var(--border-soft);
+  border-left: 3px solid var(--warn);
+  border-radius: 0 var(--radius-sm) var(--radius-sm) 0;
+  padding: 10px 14px;
+  font-size: 13.5px;
+  line-height: 1.55;
+  color: var(--text-dim);
+}
+.pitfall-icon { flex-shrink: 0; }
 
 .howto-box {
   background: var(--panel);
